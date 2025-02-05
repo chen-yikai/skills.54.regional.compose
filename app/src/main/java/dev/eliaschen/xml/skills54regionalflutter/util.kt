@@ -42,7 +42,7 @@ fun WhiteText(
 @Composable
 fun WhiteTextContent(
     text: String,
-    size: TextUnit = 20.sp,
+    size: TextUnit = 15.sp,
     weight: FontWeight = FontWeight.Normal,
     modifier: Modifier = Modifier,
     color: Color = Color.White
@@ -81,7 +81,6 @@ class xml(private val root: Element) {
             elementsIndex += indexItem.toInt()
             elements[index] = item.split("[")[0]
         }
-
         var lastEle = root.getElementsByTagName(
             elements[0]
         ).item(elementsIndex[0]) as Element
