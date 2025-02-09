@@ -72,36 +72,6 @@ class xml(private val root: Element) {
     fun getEleList(name: String): NodeList {
         return root.getElementsByTagName(name)
     }
-
-    fun getEleContents(syntax: String): String? {
-        val elements: MutableList<String> = syntax.split(">").toMutableList()
-        val elementsIndex: MutableList<Int> = mutableListOf()
-        elements.forEachIndexed { index, item ->
-            val indexItem = item.split("[")[1].split("]")[0]
-            elementsIndex += indexItem.toInt()
-            elements[index] = item.split("[")[0]
-        }
-        var lastEle = root.getElementsByTagName(
-            elements[0]
-        ).item(elementsIndex[0]) as Element
-        for (i in elements.indices) {
-            Log.i("9810", "inside for $i")
-            Log.i(
-                "9810",
-                (lastEle.getElementsByTagName(elements[i])
-                    .item(0) as Element).textContent.toString()
-            )
-            if (i == 0) continue
-            Log.i("9810", "inside for after continue")
-            lastEle = lastEle.getElementsByTagName(
-                elements[i]
-            ).item(elementsIndex[i]) as Element
-            Log.i("9810", "inside for after continue after last Ele")
-            if (i == elementsIndex.size - 1) Log.i("9810", "lastEle:hel ")
-            if (i == elements.size - 1) return lastEle.textContent
-        }
-        return ""
-    }
 }
 
 fun getEleContent(element: Element, name: String, index: Int = 0): String {
@@ -110,4 +80,15 @@ fun getEleContent(element: Element, name: String, index: Int = 0): String {
 
 fun getEleList(element: Element, name: String): NodeList {
     return element.getElementsByTagName(name)
+}
+
+fun getChineseCondition(en: String): String {
+    return when (en) {
+        "cloudy" -> "多雲"
+        "sunny" -> "晴天"
+        "overcast" -> "陰天"
+        "rain" -> "雨天"
+        "thunder" -> "打雷"
+        else -> ""
+    }
 }

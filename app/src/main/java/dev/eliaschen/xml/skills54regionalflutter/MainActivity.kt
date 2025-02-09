@@ -14,9 +14,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             var navController = rememberNavController()
-            NavHost(navController = navController, startDestination = Screen.Home.route) {
+            NavHost(navController = navController, startDestination = Screen.List.route) {
                 composable(Screen.Home.route) {
-                    HomeScreen()
+                    HomeScreen(navController)
+                }
+                composable(Screen.List.route) {
+                    ListScreen()
                 }
             }
         }
@@ -25,5 +28,6 @@ class MainActivity : ComponentActivity() {
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
+    object List : Screen("list")
 }
 

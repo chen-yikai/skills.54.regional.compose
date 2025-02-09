@@ -4,8 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
-import androidx.collection.MutableIntList
-import androidx.collection.mutableIntListOf
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -38,24 +38,41 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.w3c.dom.Element
 import org.w3c.dom.NodeList
 import java.text.SimpleDateFormat
@@ -65,7 +82,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 @Preview(showBackground = true)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(nav: NavController = rememberNavController()) {
     val context = LocalContext.current
     var currentTime by remember {
         mutableStateOf(
@@ -74,92 +91,101 @@ fun HomeScreen() {
             )
         )
     }
-    var bgName by remember { mutableStateOf("rain") }
-    val currentData = context.assets.open("weatherData/current.xml")
-    val builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-    val dataElement = builder.parse(currentData).documentElement as Element
-    val rootEle = xml(dataElement)
-    var bg = context.assets.open("weatherBg/${bgName}.jpg").use {
-        BitmapFactory.decodeStream(it)
-    }
-
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = SimpleDateFormat("HH", Locale.getDefault()).format(Date())
             delay(1000L)
         }
     }
-    Scaffold(bottomBar = { bottomBar() }) { innerPadding ->
-        val customPaddingValues = PaddingValues(
-            top = 0.dp, bottom = innerPadding.calculateBottomPadding()
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(customPaddingValues)
-        ) {
-            Image(
-                painter = BitmapPainter(bg.asImageBitmap()),
-                contentDescription = "",
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize()
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                WhiteText(
-                    if ((dataElement.getElementsByTagName("current_weather")
-                            .item(0) as Element).getAttribute("type").isNotEmpty()
-                    ) "當前位置" else "", 30.sp
-                )
-                WhiteText(
-                    rootEle.getEleContent("city"), 20.sp
-                )
-                Sh()
-                var currentCondition by remember { mutableStateOf("") }
-                val hourList: NodeList = getEleList(dataElement, "hour")
-                for (i in 0 until getEleList(dataElement, "hour").length) {
-                    val item = hourList.item(i) as Element
-                    if (getEleContent(item, "time").slice(0..1) == currentTime) {
-                        WhiteText(" ${getEleContent(item, "temperature")}", 50.sp, FontWeight.Light)
-                        bgName = getEleContent(item, "weather_condition")
-                        bgName.let {
-                            currentCondition = when (it) {
-                                "cloudy" -> "多雲"
-                                "sunny" -> "晴天"
-                                "overcast" -> "陰天"
-                                "rain" -> "雨天"
-                                "thunder" -> "打雷"
-                                else -> ""
-                            }
-                        }
-                        WhiteText(currentCondition)
-                    }
-                }
-                Sh(10.dp)
-                Row {
-                    val dayEle = getEleList(dataElement, "day").item(0) as Element
-                    WhiteText(
-                        "H: ${getEleContent(dayEle, "high_temperature").removeRange(3..3)}"
-                    )
-                    Sw(15.dp)
-                    WhiteText(
-                        "L: ${getEleContent(dayEle, "low_temperature").removeRange(3..3)}"
-                    )
-                }
-                Sh(10.dp)
-                Column(modifier = Modifier.padding(horizontal = 15.dp)) {
-                    forecastList(rootEle, context, currentTime)
-                    Sh(10.dp)
-                    daysForecastList(rootEle, context)
-                    Sh(10.dp)
-                    aqiList()
-                }
+    val list_places = listOf<String>("current", "taipei", "tainan", "taichung", "taoyuan")
+
+    var pager = rememberPagerState { 5 }
+    Scaffold(bottomBar = { bottomBar(pager, nav) }) { innerPadding ->
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+            LaunchedEffect(page) {
+                Log.i("9810", page.toString())
+            }
+            var bgName by remember { mutableStateOf("rain") }
+            var currentData = context.assets.open("weatherData/${list_places[page]}.xml")
+            var builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            var dataElement = builder.parse(currentData).documentElement as Element
+            var rootEle = xml(dataElement)
+            var bg = context.assets.open("weatherBg/${bgName}.jpg").use {
+                BitmapFactory.decodeStream(it)
             }
 
+            val customPaddingValues = PaddingValues(
+                top = 0.dp, bottom = innerPadding.calculateBottomPadding()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(customPaddingValues)
+            ) {
+                Image(
+                    painter = BitmapPainter(bg.asImageBitmap()),
+                    contentDescription = "",
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.statusBars),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    WhiteText(
+                        if ((dataElement.getElementsByTagName("current_weather")
+                                .item(0) as Element).getAttribute("type").isNotEmpty()
+                        ) "當前位置" else "", 30.sp
+                    )
+                    WhiteText(
+                        rootEle.getEleContent("city"), 20.sp
+                    )
+                    Sh(10.dp)
+                    var currentCondition by remember { mutableStateOf("") }
+                    val hourList: NodeList = getEleList(dataElement, "hour")
+                    for (i in 0 until getEleList(dataElement, "hour").length) {
+                        val item = hourList.item(i) as Element
+                        if (getEleContent(item, "time").slice(0..1) == currentTime) {
+                            WhiteText(
+                                " ${getEleContent(item, "temperature")}", 60.sp, FontWeight.Light
+                            )
+                            bgName = getEleContent(item, "weather_condition")
+                            bgName.let {
+                                currentCondition = when (it) {
+                                    "cloudy" -> "多雲"
+                                    "sunny" -> "晴天"
+                                    "overcast" -> "陰天"
+                                    "rain" -> "雨天"
+                                    "thunder" -> "打雷"
+                                    else -> ""
+                                }
+                            }
+                            WhiteText(currentCondition)
+                        }
+                    }
+                    Sh(10.dp)
+                    Row {
+                        val dayEle = getEleList(dataElement, "day").item(0) as Element
+                        WhiteText(
+                            "H: ${getEleContent(dayEle, "high_temperature").removeRange(3..3)}"
+                        )
+                        Sw(15.dp)
+                        WhiteText(
+                            "L: ${getEleContent(dayEle, "low_temperature").removeRange(3..3)}"
+                        )
+                    }
+                    Sh(10.dp)
+                    Column(modifier = Modifier.padding(horizontal = 15.dp)) {
+                        forecastList(rootEle, context, currentTime)
+                        Sh(10.dp)
+                        daysForecastList(rootEle, context)
+                        Sh(10.dp)
+                        aqiList(rootEle)
+                    }
+                }
+            }
         }
     }
 }
@@ -173,7 +199,7 @@ fun daysForecastList(rootEle: xml, context: Context) {
             .border(1.dp, Color(0xff76afca), RoundedCornerShape(5))
             .fillMaxWidth()
             .background(Color(0xff76afca).copy(alpha = 0.6f))
-            .padding(10.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -285,17 +311,15 @@ fun daysForecastList(rootEle: xml, context: Context) {
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         brush = Brush.linearGradient(
-                                            colors = if (maximalTemp < 15) {
+                                            colors = if (highTemp < 15) {
                                                 listOf(Color(0xff83b3ff), Color(0xff0066ff))
-                                            } else if (minimalTemp > 15) {
+                                            } else if (lowTemp > 15) {
                                                 listOf(Color.Yellow, Color(0xffff7700), Color.Red)
-                                            } else if (maximalTemp > 15 && minimalTemp < 15) {
-                                                listOf(Color.Yellow, Color.Yellow)
+                                            } else if (highTemp > 15 && lowTemp < 15) {
+                                                listOf(Color.Yellow)
                                             } else {
-                                                listOf(Color.Red, Color.Red)
-                                            },
-                                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                                            end = androidx.compose.ui.geometry.Offset(
+                                                listOf(Color.Red)
+                                            }, start = Offset(0f, 0f), end = Offset(
                                                 width, 0f
                                             )
                                         )
@@ -316,7 +340,7 @@ fun daysForecastList(rootEle: xml, context: Context) {
 }
 
 @Composable
-fun aqiList() {
+fun aqiList(rootEle: xml) {
     Column(
         Modifier
             .fillMaxSize()
@@ -325,13 +349,13 @@ fun aqiList() {
             .clip(RoundedCornerShape(5))
             .border(1.dp, Color(0xff76afca), RoundedCornerShape(5))
             .background(Color(0xff76afca).copy(alpha = 0.6f))
-            .padding(10.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(vertical = 5.dp)
                 .alpha(0.5f)
+                .padding(bottom = 5.dp)
         ) {
 
             Icon(
@@ -344,7 +368,71 @@ fun aqiList() {
             WhiteTextContent("空氣指標", 13.sp)
         }
         HorizontalDivider()
-        Box() {}
+        val current_aqi = rootEle.getEleContent("current_aqi").toInt()
+        val panelColor: Color = when (current_aqi) {
+            in 0..25 -> Color(0xff027b7a)
+            in 25..50 -> Color(0xff009f63)
+            in 50..75 -> Color(0xff82BF47)
+            in 75..100 -> Color(0xff009f63)
+            in 100..125 -> Color(0xffffb43c)
+            in 125..150 -> Color(0xfffd942c)
+            in 150..175 -> Color(0xffe34939)
+            else -> Color.White
+        }
+        Box(Modifier.fillMaxSize()) {
+            Canvas(Modifier.fillMaxSize()) {
+                val canvasWidth = size.width
+                val arcWidth = 450f
+                val arcHeight = 450f
+                val topLeftOffset = Offset(
+                    (canvasWidth - arcWidth) / 2, 50f
+                )
+                drawArc(
+                    color = Color.Gray.copy(alpha = 0.3f),
+                    useCenter = false,
+                    startAngle = -190f,
+                    sweepAngle = 200f,
+                    style = Stroke(width = 50f, cap = StrokeCap.Round),
+                    size = Size(arcWidth, arcHeight),
+                    topLeft = topLeftOffset
+                )
+                drawArc(
+                    color = panelColor,
+                    useCenter = false,
+                    startAngle = -190f,
+                    sweepAngle = (rootEle.getEleContent("current_aqi")
+                        .toFloat() * (200 / 500.0)).toFloat(),
+                    style = Stroke(width = 50f, cap = StrokeCap.Round),
+                    size = Size(arcWidth, arcHeight),
+                    topLeft = topLeftOffset
+                )
+            }
+            Column(
+                Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                WhiteTextContent(rootEle.getEleContent("current_aqi"), 50.sp, FontWeight.Light)
+                WhiteTextContent("AQI")
+            }
+            WhiteTextContent(
+                "0", modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(86.dp, -10.dp)
+            )
+            WhiteTextContent(
+                "500", modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(-80.dp, -10.dp)
+            )
+            Text(
+                "良好 ",
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(panelColor)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
     }
 
 }
@@ -409,7 +497,8 @@ fun forecastList(rootEle: xml, context: Context, time: String) {
 }
 
 @Composable
-fun bottomBar() {
+fun bottomBar(pager: PagerState = rememberPagerState { 2 }, nav: NavController) {
+    val scope = rememberCoroutineScope()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -424,7 +513,46 @@ fun bottomBar() {
                 ), contentDescription = "", Modifier.size(30.dp)
             )
         }
-        IconButton(onClick = {}, Modifier.align(Alignment.TopEnd)) {
+        Row(
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            Icon(painter = painterResource(R.drawable.current_location),
+                contentDescription = "",
+                tint = Color.Black,
+                modifier = Modifier
+                    .alpha(if (0 == pager.currentPage) 1f else 0.2f)
+                    .height(15.dp)
+                    .clickable {
+                        scope.launch {
+                            pager.animateScrollToPage(0)
+                        }
+                    })
+            repeat(4) {
+                val animatedFade = animateFloatAsState(
+                    targetValue = if (it + 1 == pager.currentPage) 1f else 0.2f, label = "alpha"
+                )
+                Box(
+                    Modifier
+                        .padding(horizontal = 5.dp)
+                        .clip(CircleShape)
+                        .alpha(animatedFade.value)
+                        .background(Color.Black)
+                        .size(8.dp, 8.dp)
+                        .clickable {
+                            scope.launch {
+                                pager.animateScrollToPage(it + 1)
+                            }
+                        })
+
+            }
+        }
+        IconButton(
+            onClick = { nav.navigate(Screen.List.route) }, Modifier.align(Alignment.TopEnd)
+        ) {
             Icon(
                 painter = painterResource(
                     R.drawable.list
