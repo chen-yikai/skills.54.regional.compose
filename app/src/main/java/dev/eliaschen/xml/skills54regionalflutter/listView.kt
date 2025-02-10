@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +52,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
 import org.w3c.dom.Element
 import java.text.SimpleDateFormat
@@ -53,7 +64,7 @@ import java.util.Locale.getDefault
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true)
 @Composable
-fun ListScreen() {
+fun ListScreen(nav: NavController = rememberNavController()) {
     var searchValue by remember { mutableStateOf("") }
     val context = LocalContext.current
     val listFile = context.assets.open("weatherData/city_list.xml")
@@ -64,6 +75,7 @@ fun ListScreen() {
     var searchHint by remember { mutableStateOf(listOf<String>()) }
     var userList by remember { mutableStateOf(listOf<String>()) }
     val sharePref = context.getSharedPreferences("app", Context.MODE_PRIVATE)
+    var showMenu by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -104,7 +116,47 @@ fun ListScreen() {
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            IconButton(onClick = {}) {
+            IconButton(onClick = {
+                showMenu = !showMenu
+            }) {
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .border(1.dp, Color.Gray, RoundedCornerShape(10.dp))
+                        .background(Color.White)
+                        .width(150.dp)
+                ) {
+                    DropdownMenuItem(text = { Text("編輯列表", color = Color.Gray) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Outlined.Edit, tint = Color.Gray, contentDescription = ""
+                            )
+                        },
+                        onClick = { /* Do something... */ })
+                    DropdownMenuItem(text = { Text("設定", color = Color.Gray) }, trailingIcon = {
+                        Icon(
+                            Icons.Outlined.Settings, tint = Color.Gray, contentDescription = ""
+                        )
+                    }, onClick = { /* Do something... */ })
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("攝氏°C", color = Color.Gray) },
+                        onClick = {},
+                        trailingIcon = {
+                            Icon(
+                                Icons.Outlined.Check, tint = Color.Gray, contentDescription = ""
+                            )
+                        })
+                    DropdownMenuItem(
+                        text = { Text("華氏°F", color = Color.Gray) },
+                        onClick = {},
+                        trailingIcon = {
+                            Icon(
+                                Icons.Outlined.Check, tint = Color.Gray, contentDescription = ""
+                            )
+                        })
+                }
                 Icon(
                     painter = painterResource(R.drawable.menu), contentDescription = ""
                 )
@@ -145,14 +197,17 @@ fun ListScreen() {
                         .use { BitmapFactory.decodeStream(it).asImageBitmap() }
                     val cityWeatherEle =
                         xmlBuilder.parse(cityWeatherFile).documentElement as Element
-
+                    val cityname = getEleContent(listEle, "file_name").split(".")[0]
                     if (userList.toString().contains(getEleContent(listEle, "name"))) {
-                        Box(
-                            Modifier
-                                .padding(bottom = 15.dp)
-                                .height(120.dp)
-                                .fillMaxWidth()
-                        ) {
+                        Box(Modifier
+                            .padding(bottom = 15.dp)
+                            .height(120.dp)
+                            .fillMaxWidth()
+                            .clickable {
+                                nav.navigate(
+                                    "home/${cityname}"
+                                )
+                            }) {
                             Image(
                                 bitmap = bg,
                                 contentDescription = "",
@@ -161,14 +216,12 @@ fun ListScreen() {
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(5.dp))
                                     .border(1.dp, Color.Gray, RoundedCornerShape(5.dp))
-
                             )
                             Box(
                                 Modifier
                                     .fillMaxSize()
                                     .padding(10.dp)
                             ) {
-
                                 Column(Modifier.align(Alignment.TopStart)) {
                                     WhiteText(
                                         if (listEle.getAttribute("type") == "current") "當前位置" else getEleContent(

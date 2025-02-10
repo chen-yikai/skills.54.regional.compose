@@ -82,14 +82,22 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 @Preview(showBackground = true)
 @Composable
-fun HomeScreen(nav: NavController = rememberNavController()) {
+fun HomeScreen(nav: NavController = rememberNavController(), location: String = "current") {
     val context = LocalContext.current
+    var first = true
     var currentTime by remember {
         mutableStateOf(
             SimpleDateFormat("HH", Locale.getDefault()).format(
                 Date()
             )
         )
+    }
+    LaunchedEffect(Unit) {
+        if (first) {
+
+        } else {
+
+        }
     }
     LaunchedEffect(Unit) {
         while (true) {
@@ -101,9 +109,13 @@ fun HomeScreen(nav: NavController = rememberNavController()) {
 
     var pager = rememberPagerState { 5 }
     Scaffold(bottomBar = { bottomBar(pager, nav) }) { innerPadding ->
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-            LaunchedEffect(page) {
-                Log.i("9810", page.toString())
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { thisPage ->
+            var page = thisPage
+            if (first) {
+                page = list_places.indexOf(location)
+                first = false
+            } else {
+                page = thisPage
             }
             var bgName by remember { mutableStateOf("rain") }
             var currentData = context.assets.open("weatherData/${list_places[page]}.xml")
@@ -551,7 +563,8 @@ fun bottomBar(pager: PagerState = rememberPagerState { 2 }, nav: NavController) 
             }
         }
         IconButton(
-            onClick = { nav.navigate(Screen.List.route) }, Modifier.align(Alignment.TopEnd)
+            onClick = { nav.navigate(Screen.List.route + "/current") },
+            Modifier.align(Alignment.TopEnd)
         ) {
             Icon(
                 painter = painterResource(
